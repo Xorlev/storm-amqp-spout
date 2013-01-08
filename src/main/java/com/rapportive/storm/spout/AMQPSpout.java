@@ -12,6 +12,7 @@ import com.rapportive.storm.amqp.QueueDeclaration;
 import org.apache.log4j.Logger;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -89,6 +90,9 @@ public class AMQPSpout implements IRichSpout {
     private final String amqpPassword;
     private final String amqpVhost;
     private final boolean requeueOnFail;
+    private final boolean republishOnFail;
+    private final String republishExchange;
+    private final String republishRoutingKey;
 
     private final QueueDeclaration queueDeclaration;
 
@@ -102,8 +106,6 @@ public class AMQPSpout implements IRichSpout {
     private SpoutOutputCollector collector;
 
     private int prefetchCount;
-
-
 
     /**
      * Create a new AMQP spout.  When
@@ -124,7 +126,7 @@ public class AMQPSpout implements IRichSpout {
      *          each AMQP message into a Storm tuple
      */
     public AMQPSpout(String host, int port, String username, String password, String vhost, QueueDeclaration queueDeclaration, Scheme scheme) {
-        this(host, port, username, password, vhost, queueDeclaration, scheme, false);
+        this(host, port, username, password, vhost, queueDeclaration, scheme, new HashMap<String, String>());
     }
 
     /**
@@ -145,18 +147,32 @@ public class AMQPSpout implements IRichSpout {
      *          each AMQP message into a Storm tuple
      * @param requeueOnFail  whether messages should be requeued on failure 
      */
-    public AMQPSpout(String host, int port, String username, String password, String vhost, QueueDeclaration queueDeclaration, Scheme scheme, boolean requeueOnFail) {
+    public AMQPSpout(String host, int port, String username, String password, String vhost, QueueDeclaration queueDeclaration, Scheme scheme, Map<String, String> options) {
         this.amqpHost = host;
         this.amqpPort = port;
         this.amqpUsername = username;
         this.amqpPassword = password;
         this.amqpVhost = vhost;
         this.queueDeclaration = queueDeclaration;
-        this.requeueOnFail = requeueOnFail;
+
+        if (options.containsKey("requeOnFail")) {
+            this.requeueOnFail = true;
+        } else {
+            this.requeueOnFail = false;
+        }
+
+        if (options.containsKey("republishOnFail")) {
+            this.republishOnFail = true;
+            this.republishExchange = options.get("republishExchange");
+            this.republishRoutingKey = options.get("republishRoutingKey");
+        } else {
+            this.republishOnFail = false;
+            this.republishExchange = "";
+            this.republishRoutingKey = "";
+        }
         
         this.serialisationScheme = scheme;
     }
-
 
     /**
      * Acks the message with the AMQP broker.
@@ -168,7 +184,6 @@ public class AMQPSpout implements IRichSpout {
             if (amqpChannel != null) {
                 try {
 
-                    amqpChannel.basicPublish("messages", "error-pings", new AMQP.BasicProperties.Builder().contentType("text/plain").deliveryMode(2).build(), "error".getBytes());
                     amqpChannel.basicAck(deliveryTag, false /* not multiple */);
 
                 } catch (IOException e) {
@@ -236,7 +251,13 @@ public class AMQPSpout implements IRichSpout {
             final long deliveryTag = (Long) msgId;
             if (amqpChannel != null) {
                 try {
+
                     amqpChannel.basicReject(deliveryTag, requeueOnFail);
+
+                    if (republishOnFail) {
+                        amqpChannel.basicPublish(republishExchange, republishRoutingKey, MessageProperties.PERSISTENT_TEXT_PLAIN, "error".getBytes());
+                    }
+
                 } catch (IOException e) {
                     log.warn("Failed to reject delivery-tag " + deliveryTag, e);
                 }
@@ -338,7 +359,6 @@ public class AMQPSpout implements IRichSpout {
             log.warn("Failed to reconnect to AMQP broker", e);
         }
     }
-
 
     /**
      * Declares the output fields of this spout according to the provided

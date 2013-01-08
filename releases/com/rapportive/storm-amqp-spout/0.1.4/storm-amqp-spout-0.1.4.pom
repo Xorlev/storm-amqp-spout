@@ -30,13 +30,11 @@
       <groupId>com.rabbitmq</groupId>
       <artifactId>amqp-client</artifactId>
       <version>2.6.1</version>
-        <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>log4j</groupId>
       <artifactId>log4j</artifactId>
       <version>1.2.16</version>
-        <scope>provided</scope>
     </dependency>
     <dependency>
     	<groupId>junit</groupId>
@@ -70,4 +68,5 @@
       </plugin>
     </plugins>
   </build>
+    <name>storm-amqp-spout</name>
 </project>

@@ -3,17 +3,27 @@
   <groupId>com.rapportive</groupId>
   <artifactId>storm-amqp-spout</artifactId>
   <version>0.1.4</version>
+  
+  <distributionManagement>
+    <repository>
+      <id>repo</id>
+      <name>Releases</name>
+      <url>https://github.com/z1lv1n4s/storm-amqp-spout/raw/master/releases</url>
+    </repository>
+  </distributionManagement>
+  
   <repositories>
     <repository>
       <id>clojars.org</id>
       <url>http://clojars.org/repo</url>
     </repository>
   </repositories>
+  
   <dependencies>
     <dependency>
       <groupId>storm</groupId>
       <artifactId>storm</artifactId>
-      <version>0.7.4</version>
+      <version>0.8.0</version>
       <scope>provided</scope>
     </dependency>
     <dependency>
@@ -51,14 +61,13 @@
           </links>
         </configuration>
       </plugin>
-
-        <plugin>
-            <artifactId>maven-compiler-plugin</artifactId>
-            <configuration>
-                <source>1.6</source>
-                <target>1.6</target>
-            </configuration>
-        </plugin>
+      <plugin>
+        <artifactId>maven-compiler-plugin</artifactId>
+          <configuration>
+            <source>1.6</source>
+            <target>1.6</target>
+          </configuration>
+      </plugin>
     </plugins>
   </build>
 </project>

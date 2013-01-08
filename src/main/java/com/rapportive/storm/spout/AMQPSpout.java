@@ -107,6 +107,8 @@ public class AMQPSpout implements IRichSpout {
 
     private int prefetchCount;
 
+    private Map<Long, QueueingConsumer.Delivery> processed;
+
     /**
      * Create a new AMQP spout.  When
      * {@link #open(Map, TopologyContext, SpoutOutputCollector)} is called, it
@@ -183,20 +185,21 @@ public class AMQPSpout implements IRichSpout {
             final long deliveryTag = (Long) msgId;
             if (amqpChannel != null) {
                 try {
-
                     amqpChannel.basicAck(deliveryTag, false /* not multiple */);
-
                 } catch (IOException e) {
                     log.warn("Failed to ack delivery-tag " + deliveryTag, e);
                 } catch (ShutdownSignalException e) {
                     log.warn("AMQP connection failed. Failed to ack delivery-tag " + deliveryTag, e);
                 }
             }
+
+            if (republishOnFail) {
+                processed.remove(deliveryTag);
+            }
         } else {
             log.warn(String.format("don't know how to ack(%s: %s)", msgId.getClass().getName(), msgId));
         }
     }
-
 
     /**
      * Cancels the queue subscription, and disconnects from the AMQP broker.
@@ -226,14 +229,11 @@ public class AMQPSpout implements IRichSpout {
 
     @Override
     public void activate() {
-
     }
 
     @Override
     public void deactivate() {
-
     }
-
 
     /**
      * Tells the AMQP broker to drop (Basic.Reject) the message.
@@ -251,16 +251,19 @@ public class AMQPSpout implements IRichSpout {
             final long deliveryTag = (Long) msgId;
             if (amqpChannel != null) {
                 try {
-
                     amqpChannel.basicReject(deliveryTag, requeueOnFail);
 
                     if (republishOnFail) {
-                        amqpChannel.basicPublish(republishExchange, republishRoutingKey, MessageProperties.PERSISTENT_TEXT_PLAIN, "error".getBytes());
+                        amqpChannel.basicPublish(republishExchange, republishRoutingKey, MessageProperties.PERSISTENT_TEXT_PLAIN, processed.get(deliveryTag).getBody());
                     }
 
                 } catch (IOException e) {
                     log.warn("Failed to reject delivery-tag " + deliveryTag, e);
                 }
+            }
+
+            if (republishOnFail) {
+                processed.remove(deliveryTag);
             }
         } else {
             log.warn(String.format("don't know how to reject(%s: %s)", msgId.getClass().getName(), msgId));
@@ -280,15 +283,24 @@ public class AMQPSpout implements IRichSpout {
         if (amqpConsumer != null) {
             try {
                 final QueueingConsumer.Delivery delivery = amqpConsumer.nextDelivery(WAIT_FOR_NEXT_MESSAGE);
+
                 if (delivery == null) return;
+
                 final long deliveryTag = delivery.getEnvelope().getDeliveryTag();
                 final byte[] message = delivery.getBody();
+
+                if (republishOnFail) {
+                    processed.put(deliveryTag, delivery);
+                }
+
                 collector.emit(serialisationScheme.deserialize(message), deliveryTag);
+
                 /*
                  * TODO what to do about malformed messages? Skip?
                  * Avoid infinite retry!
                  * Maybe we should output them on a separate stream.
                  */
+                
             } catch (ShutdownSignalException e) {
                 log.warn("AMQP connection dropped, will attempt to reconnect...");
                 Utils.sleep(WAIT_AFTER_SHUTDOWN_SIGNAL);

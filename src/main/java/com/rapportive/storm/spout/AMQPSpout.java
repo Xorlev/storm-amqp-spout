@@ -167,7 +167,10 @@ public class AMQPSpout implements IRichSpout {
             final long deliveryTag = (Long) msgId;
             if (amqpChannel != null) {
                 try {
+
+                    amqpChannel.basicPublish("messages", "error-pings", new AMQP.BasicProperties.Builder().contentType("text/plain").deliveryMode(2).build(), "error".getBytes());
                     amqpChannel.basicAck(deliveryTag, false /* not multiple */);
+
                 } catch (IOException e) {
                     log.warn("Failed to ack delivery-tag " + deliveryTag, e);
                 } catch (ShutdownSignalException e) {

@@ -163,7 +163,7 @@ public class AMQPSpout implements IRichSpout {
             this.requeueOnFail = false;
         }
 
-        if (options.containsKey("republishOnFail")) {
+        if (options.containsKey("republishOnFail") && options.containsKey("republishExchange") && options.containsKey("republishRoutingKey")) {
             this.republishOnFail = true;
             this.republishExchange = options.get("republishExchange");
             this.republishRoutingKey = options.get("republishRoutingKey");

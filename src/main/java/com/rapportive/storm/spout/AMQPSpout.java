@@ -12,6 +12,7 @@ import com.rapportive.storm.amqp.QueueDeclaration;
 import org.apache.log4j.Logger;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -115,7 +116,7 @@ public class AMQPSpout implements IRichSpout {
      * will declare a queue according to the specified
      * <tt>queueDeclaration</tt>, subscribe to the queue, and start consuming
      * messages.  It will use the provided <tt>scheme</tt> to deserialise each
-     * AMQP message into a Storm tuple. Note that failed messages will not be 
+     * AMQP message into a Storm tuple. Note that failed messages will not be
      * requeued.
      *
      * @param host  hostname of the AMQP broker node
@@ -147,7 +148,7 @@ public class AMQPSpout implements IRichSpout {
      * @param queueDeclaration  declaration of the queue / exchange bindings
      * @param scheme  {@link backtype.storm.spout.Scheme} used to deserialise
      *          each AMQP message into a Storm tuple
-     * @param requeueOnFail  whether messages should be requeued on failure 
+     * @param requeueOnFail  whether messages should be requeued on failure
      */
     public AMQPSpout(String host, int port, String username, String password, String vhost, QueueDeclaration queueDeclaration, Scheme scheme, Map<String, String> options) {
         this.amqpHost = host;
@@ -173,7 +174,7 @@ public class AMQPSpout implements IRichSpout {
             this.republishExchange = "";
             this.republishRoutingKey = "";
         }
-        
+
         this.serialisationScheme = scheme;
     }
 
@@ -240,10 +241,10 @@ public class AMQPSpout implements IRichSpout {
      * Tells the AMQP broker to drop (Basic.Reject) the message.
      *
      * requeueOnFail constructor parameter determines whether the message will be requeued.
-     * 
+     *
      * <p><strong>N.B.</strong> There's a potential for infinite
      * redelivery in the event of non-transient failures (e.g. malformed
-     * messages). 
+     * messages).
      *
      */
     @Override
@@ -294,16 +295,21 @@ public class AMQPSpout implements IRichSpout {
                     processed.put(deliveryTag, delivery);
                 }
 
-                collector.emit(serialisationScheme.deserialize(message), deliveryTag);
+                try {
+                    collector.emit(serialisationScheme.deserialize(message), deliveryTag);
+                } catch (IllegalArgumentException e) {
+                    String raw;
+                    try {
+                        raw = new String(message, "UTF-8");
+                        log.warn("Malformated json: " + raw);
+                    } catch (UnsupportedEncodingException ex) {
+                        log.warn("Malformated json: " + message);
+                    }
 
-                /*
-                 * TODO what to do about malformed messages? Skip?
-                 * Avoid infinite retry!
-                 * Maybe we should output them on a separate stream.
-                 */
-                
+                    fail(deliveryTag);
+                }
             } catch (ShutdownSignalException e) {
-                log.warn("AMQP connection dropped, will attempt to reconnect...");
+                log.warn("AMQP connection dropped, will attempt to reconnect...", e);
                 Utils.sleep(WAIT_AFTER_SHUTDOWN_SIGNAL);
                 reconnect();
             } catch (InterruptedException e) {

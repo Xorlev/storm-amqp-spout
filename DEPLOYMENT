@@ -1,0 +1,4 @@
+To deploy run this command:
+mvn -DaltDeploymentRepository=snapshot-repo::default::file:releases clean deploy
+
+Then push all changes to master

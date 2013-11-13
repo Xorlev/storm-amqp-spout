@@ -315,6 +315,8 @@ public class AMQPSpout implements IRichSpout {
             } catch (InterruptedException e) {
                 // interrupted while waiting for message, big deal
             }
+        } else {
+            log.warn("AMQP consumer is null...");
         }
     }
 
@@ -377,6 +379,7 @@ public class AMQPSpout implements IRichSpout {
         } catch (IOException e) {
             log.warn("Failed to reconnect to AMQP broker", e);
         }
+        log.info("Reconnected!");
     }
 
     /**
